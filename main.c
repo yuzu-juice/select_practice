@@ -5,8 +5,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-const int MAX_EVENTS = 10;
+#include <string.h>
 
 static int listen_socket(int listen_port) {
   struct sockaddr_in addr;
@@ -16,7 +15,10 @@ static int listen_socket(int listen_port) {
   if (lfd == -1) {
     perror("socket");
     return -1;
-  }x
+  }
+
+  int on = 1;
+  setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
 
   memset(&addr, 0, sizeof(addr));
   addr.sin_port = htons(listen_port);
@@ -38,32 +40,43 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  int h = listen_socket(argv[1]);
-  if (h == -1)
+  int server_fd = listen_socket(atoi(argv[1]));
+  if (server_fd == -1)
     exit(EXIT_FAILURE);
+  int clients[FD_SETSIZE];
+  for (int i = 0; i < FD_SETSIZE; ++i)
+    clients[i] = -1;
+
+  char buf[1024];
 
   while (1) {
-    int nfds = 0;
-    ssize_t nbytes;
-    fd_set readfds, writefds;
-
+    fd_set readfds;
     FD_ZERO(&readfds);
-    FD_ZERO(&writefds);
-    nfds = max(nfds, h);
+    FD_SET(server_fd, &readfds);
+    int nfds = server_fd;
+    for (int i = 0; i < FD_SETSIZE; ++i) {
+      if (clients[i] == -1) continue;
+      FD_SET(clients[i], &readfds);
+      if (clients[i] > nfds) nfds = clients[i];
+    }
 
-    ready = select(nfds + 1, &readfds, &writefds, NULL, NULL);
-
-    if (ready == -1)
+    if (select(nfds + 1, &readfds, NULL, NULL, NULL) < 0)
       exit(EXIT_FAILURE);
 
-    for (int fd = 0; fd < nfds + 1; ++fd) {
-      if (FD_ISSET(h, &readfds))
-	// recv
-	;
+    if (FD_ISSET(server_fd, &readfds)) {
+      int cfd = accept(server_fd, NULL, NULL);
+      for (int i = 0; i < FD_SETSIZE; ++i)
+        if (clients[i] == -1) { clients[i] = cfd; break; }
+    }
+
+    for (int i = 0; i < FD_SETSIZE; ++i) {
+      int fd = clients[i];
+      if (fd == -1 || !FD_ISSET(fd, &readfds)) continue;
+      int n = recv(fd, buf, sizeof(buf), 0);
+      if (n <= 0) { close(fd); clients[i] = -1; }
+      else send(fd, buf, n, 0);
     }
   }
-
-
 
   return 0;
 }
