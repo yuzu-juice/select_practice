@@ -9,4 +9,4 @@ all:
 run: all
 	./$(NAME) 9999
 
-.PHONY: all
+.PHONY: all run

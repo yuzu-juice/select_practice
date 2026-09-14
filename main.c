@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+const int MAX_EVENTS = 10;
 
 int main(int argc, char **argv) {
   if (argc != 2) {
@@ -13,5 +14,8 @@ int main(int argc, char **argv) {
 
   unsigned int port = atoi(argv[1]);
   (void)port;
+
+
+
   return 0;
 }
